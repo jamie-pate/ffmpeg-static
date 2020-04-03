@@ -7,9 +7,11 @@ jflag=
 jval=2
 rebuild=0
 download_only=0
+no_build_deps=0
+final_target_dir=
 uname -mpi | grep -qE 'x86|i386|i686' && is_x86=1 || is_x86=0
 
-while getopts 'j:Bd' OPTION
+while getopts 'j:T:BdD' OPTION
 do
   case $OPTION in
   j)
@@ -21,6 +23,12 @@ do
       ;;
   d)
       download_only=1
+      ;;
+  D)
+      no_build_deps=1
+      ;;
+  T)
+      final_target_dir="$OPTARG"
       ;;
   ?)
       printf "Usage: %s: [-j concurrency_level] (hint: your cores + 20%%) [-B] [-d]\n" $(basename $0) >&2
@@ -44,6 +52,7 @@ fi
 cd `dirname $0`
 ENV_ROOT=`pwd`
 . ./env.source
+FINAL_TARGET_DIR=${final_target_dir:-$TARGET_DIR}
 
 # check operating system
 OS=`uname`
@@ -201,7 +210,9 @@ download \
 [ $download_only -eq 1 ] && exit 0
 
 TARGET_DIR_SED=$(echo $TARGET_DIR | awk '{gsub(/\//, "\\/"); print}')
-
+if [ $no_build_deps -eq 1 ]; then
+  echo "Skipping dependencies"
+else
 if [ $is_x86 -eq 1 ]; then
     echo "*** Building yasm ***"
     cd $BUILD_DIR/yasm*
@@ -275,6 +286,7 @@ cd $BUILD_DIR/zimg-release-*
 ./configure --enable-static  --prefix=$TARGET_DIR --disable-shared
 make -j $jval
 make install
+fi
 
 # FFMpeg
 echo "*** Building FFmpeg ***"
@@ -284,7 +296,7 @@ cd $BUILD_DIR/FFmpeg*
 if [ "$platform" = "linux" ]; then
   [ ! -f config.status ] && PATH="$BIN_DIR:$PATH" \
   PKG_CONFIG_PATH="$TARGET_DIR/lib/pkgconfig" ./configure \
-    --prefix="$TARGET_DIR" \
+    --prefix="$FINAL_TARGET_DIR" \
     --pkg-config-flags="--static" \
     --extra-cflags="-I$TARGET_DIR/include" \
     --extra-ldflags="-L$TARGET_DIR/lib" \
