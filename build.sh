@@ -104,35 +104,11 @@ sed 's/void pure_func/void/g' -i ./nasm-2.13.01/include/nasm.h
 sed 's/void pure_func/void/g' -i ./nasm-2.13.01/include/nasmlib.h
 sed 's/void pure_func/void/g' -i ./yasm-1.3.0/modules/preprocs/nasm/nasmlib.h
 
-# download \
-#   "OpenSSL_1_0_2o.tar.gz" \
-#   "" \
-#   "5b5c050f83feaa0c784070637fac3af4" \
-#   "https://github.com/openssl/openssl/archive/"
-
 download \
   "v1.2.11.tar.gz" \
   "zlib-1.2.11.tar.gz" \
   "0095d2d2d1f3442ce1318336637b695f" \
   "https://github.com/madler/zlib/archive/"
-
-# download \
-#   "last_x264.tar.bz2" \
-#   "" \
-#   "nil" \
-#   "http://download.videolan.org/pub/videolan/x264/snapshots/"
-
-# download \
-#   "x265_2.7.tar.gz" \
-#   "" \
-#   "b0d7d20da2a418fa4f53a559946ea079" \
-#   "https://bitbucket.org/multicoreware/x265/downloads/"
-
-# download \
-#   "v0.1.6.tar.gz" \
-#   "fdk-aac.tar.gz" \
-#   "223d5f579d29fb0d019a775da4e0e061" \
-#   "https://github.com/mstorsjo/fdk-aac/archive"
 
 # libass dependency
 download \
@@ -141,23 +117,11 @@ download \
   "e246c08a3bac98e31e731b2a1bf97edf" \
   "https://www.freedesktop.org/software/harfbuzz/release/"
 
-# download \
-#   "fribidi-1.0.2.tar.bz2" \
-#   "" \
-#   "bd2eb2f3a01ba11a541153f505005a7b" \
-#   "https://github.com/fribidi/fribidi/releases/download/v1.0.2/"
-
 download \
   "0.13.6.tar.gz" \
   "libass-0.13.6.tar.gz" \
   "nil" \
   "https://github.com/libass/libass/archive/"
-
-# # download \
-#   "lame-3.99.5.tar.gz" \
-#   "" \
-#   "84835b313d4a8b68f5349816d33e07ce" \
-#   "http://downloads.sourceforge.net/project/lame/lame/3.99"
 
 download \
   "opus-1.1.2.tar.gz" \
@@ -200,6 +164,12 @@ download \
   "openjpeg-2.1.2.tar.gz" \
   "40a7bfdcc66280b3c1402a0eb1a27624" \
   "https://github.com/uclouvain/openjpeg/archive/"
+
+download \
+  "v1.3.6.tar.gz" \
+  "vorbis-1.3.6.tar.gz" \
+  "03e967efb961f65a313459c5d0f4cbfb" \
+  "https://github.com/xiph/vorbis/archive/"
 
 download \
   "n4.0.tar.gz" \
@@ -288,6 +258,14 @@ make -j $jval
 make install
 fi
 
+echo "*** Building libvorbis ***"
+cd $BUILD_DIR/vorbis*
+[ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
+./autogen.sh
+./configure --prefix=$TARGET_DIR --disable-shared
+make -j $jval
+make install
+
 # FFMpeg
 echo "*** Building FFmpeg ***"
 cd $BUILD_DIR/FFmpeg*
@@ -309,11 +287,15 @@ if [ "$platform" = "linux" ]; then
     --enable-shared --disable-static \
     --enable-decoder=libopus --enable-decoder=opus \
     --enable-decoder=libvpx_vp9 --enable-decoder=vp9 \
+    --enable-decoder=libvorbis --enable-decoder=vorbis \
     --enable-decoder=vp9_v4l2m2m \
     --enable-parser=vp9 --enable-parser=opus \
+    --enable-parser=vorbis \
     --enable-demuxer=matroska \
     --enable-demuxer=opus \
+    --enable-demuxer=vorbis \
     --enable-libopus --enable-libvpx \
+    --enable-libvorbis \
     --enable-opencl --enable-opengl
 
 # requires --enable-libmfx:
