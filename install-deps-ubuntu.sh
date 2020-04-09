@@ -1,8 +1,9 @@
 #!/bin/bash
 
-sudo apt-get install build-essential curl tar pkg-config
-sudo apt-get -y --force-yes install \
-  autoconf \
+export DEBIAN_FRONTEND=noninteractive
+BOOTSTRAP_PKGS="build-essential curl tar pkg-config"
+# todo: trim this list
+DEV_PKGS="autoconf \
   automake \
   build-essential \
   cmake \
@@ -28,7 +29,9 @@ sudo apt-get -y --force-yes install \
   libxvidcore-dev \
   pkg-config \
   texi2html \
-  zlib1g-dev
-
-./build.sh "$@"
-
+  zlib1g-dev \
+  mingw-w64-tools"
+set -x
+sudo apt -y install $BOOTSTRAP_PKGS
+sudo apt -y install $DEV_PKGS
+set +x

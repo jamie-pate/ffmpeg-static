@@ -9,9 +9,11 @@ rebuild=0
 download_only=0
 no_build_deps=0
 final_target_dir=
+cross_platform=
+platform=linux
 uname -mpi | grep -qE 'x86|i386|i686' && is_x86=1 || is_x86=0
 
-while getopts 'j:T:BdD' OPTION
+while getopts 'j:T:p:BdD' OPTION
 do
   case $OPTION in
   j)
@@ -30,8 +32,17 @@ do
   T)
       final_target_dir="$OPTARG"
       ;;
+  p)
+      cross_platform="$OPTARG"
+      ;;
   ?)
-      printf "Usage: %s: [-j concurrency_level] (hint: your cores + 20%%) [-B] [-d]\n" $(basename $0) >&2
+      printf "Usage: %s: [-j concurrency_level] [-B] [-d] [-D] [-T /path/to/final/target] [-p platform]\n" $(basename $0) >&2
+      echo " -j: concurrency level (number of cores on your pc +- 20%)"
+      echo " -D: skip building dependencies" >&2
+      echo " -d: download only" >&2
+      echo " -B: force reconfigure and rebuild" >&2 # not sure this makes a difference
+      echo " -T: set final target for installing ffmpeg libs" >&2
+      echo " -p: set cross compile platform (windows|darwin)" >&2
       exit 2
       ;;
   esac
@@ -66,6 +77,40 @@ case $OS in
     platform='linux'
     ;;
 esac
+
+# defaults are for linux
+cross_platform_flags="--enable-opencl"
+cc_host=
+cc_extra_libs=
+cc_lib_prefix=
+if [ ! -z "$cross_platform" ]; then
+  case $cross_platform in
+    'windows')
+      platform=windows
+      cc_host=x86_64-w64-mingw32
+      cc_platform=x86_64-win64-gcc
+      cross_platform_flags="--arch=x86_64 --target-os=mingw32 --cross-prefix=x86_64-w64-mingw32-"
+      cc_lib_prefix="-static"
+      cc_extra_libs="-lole32"
+      ;;
+    'darwin')
+      platform=darwin
+      cc_host="TODO"
+      # 19 is catalina
+      cc_platform=x86_64-darwin17-gcc
+      cross_platform_flags="--arch=x86_64 cross-prefix=x86_64-osx-"
+      echo "not implemented"
+      exit 1
+      ;;
+    esac
+fi
+
+last_platform="$(cat $ENV_ROOT/.config-platform || true)"
+if [ "$platform" != "$last_platform" ] && [ "$rebuild" -ne 1 ]; then
+  rebuild=1
+  echo "platform changed from $last_platform to $platform. Forcing a rebuild"
+fi
+echo "$platform" > $ENV_ROOT/.config-platform
 
 #if you want a rebuild
 #rm -rf "$BUILD_DIR" "$TARGET_DIR"
@@ -110,19 +155,6 @@ download \
   "0095d2d2d1f3442ce1318336637b695f" \
   "https://github.com/madler/zlib/archive/"
 
-# libass dependency
-download \
-  "harfbuzz-1.4.6.tar.bz2" \
-  "" \
-  "e246c08a3bac98e31e731b2a1bf97edf" \
-  "https://www.freedesktop.org/software/harfbuzz/release/"
-
-download \
-  "0.13.6.tar.gz" \
-  "libass-0.13.6.tar.gz" \
-  "nil" \
-  "https://github.com/libass/libass/archive/"
-
 download \
   "opus-1.1.2.tar.gz" \
   "" \
@@ -140,12 +172,6 @@ download \
   "" \
   "eb961f31cd55f0acf5aad1a7b900ef59" \
   "https://rtmpdump.mplayerhq.hu/download/"
-
-download \
-  "soxr-0.1.2-Source.tar.xz" \
-  "" \
-  "0866fc4320e26f47152798ac000de1c0" \
-  "https://sourceforge.net/projects/soxr/files/"
 
 download \
   "release-0.98b.tar.gz" \
@@ -166,6 +192,12 @@ download \
   "https://github.com/uclouvain/openjpeg/archive/"
 
 download \
+  "v1.3.3.tar.gz" \
+  "ogg-1.3.3.tar.gz" \
+  "b8da1fe5ed84964834d40855ba7b93c2" \
+  "https://github.com/xiph/ogg/archive/"
+
+download \
   "v1.3.6.tar.gz" \
   "vorbis-1.3.6.tar.gz" \
   "03e967efb961f65a313459c5d0f4cbfb" \
@@ -179,6 +211,13 @@ download \
 
 [ $download_only -eq 1 ] && exit 0
 
+cc_flags=
+libvpx_cc_flags=
+if [ ! -z $cc_host ]; then
+  cc_flags="--host=$cc_host"
+  libvpx_cc_flags="--target=$cc_platform"
+fi
+
 TARGET_DIR_SED=$(echo $TARGET_DIR | awk '{gsub(/\//, "\\/"); print}')
 if [ $no_build_deps -eq 1 ]; then
   echo "Skipping dependencies"
@@ -187,7 +226,7 @@ if [ $is_x86 -eq 1 ]; then
     echo "*** Building yasm ***"
     cd $BUILD_DIR/yasm*
     [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
-    [ ! -f config.status ] && ./configure --prefix=$TARGET_DIR --bindir=$BIN_DIR
+    [ ! -f config.status ] && ./configure --prefix=$TARGET_DIR --bindir=$BIN_DIR $cc_flags
     make -j $jval
     make install
 fi
@@ -196,89 +235,74 @@ if [ $is_x86 -eq 1 ]; then
     echo "*** Building nasm ***"
     cd $BUILD_DIR/nasm*
     [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
-    [ ! -f config.status ] && ./configure --prefix=$TARGET_DIR --bindir=$BIN_DIR
+    [ ! -f config.status ] && ./configure --prefix=$TARGET_DIR --bindir=$BIN_DIR $cc_flags
     make -j $jval
     make install
 fi
 
-echo "*** Building libass ***"
-cd $BUILD_DIR/libass-*
-[ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
-./autogen.sh
-./configure --prefix=$TARGET_DIR --disable-shared
-make -j $jval
-make install
-
 echo "*** Building opus ***"
 cd $BUILD_DIR/opus*
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
-[ ! -f config.status ] && ./configure --prefix=$TARGET_DIR --disable-shared
+[ ! -f config.status ] && ./configure --prefix=$TARGET_DIR --disable-shared $cc_flags
 make
 make install
 
 echo "*** Building libvpx ***"
 cd $BUILD_DIR/libvpx*
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
-[ ! -f config.status ] && PATH="$BIN_DIR:$PATH" ./configure --prefix=$TARGET_DIR --disable-examples --disable-unit-tests --enable-pic
+[ ! -f config.status ] && PATH="$BIN_DIR:$PATH" ./configure --prefix=$TARGET_DIR --disable-examples --disable-unit-tests --enable-pic \
+  $libvpx_cc_flags
 PATH="$BIN_DIR:$PATH" make -j $jval
 make install
 
-echo "*** Building libsoxr ***"
-cd $BUILD_DIR/soxr-*
-[ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
-PATH="$BIN_DIR:$PATH" cmake -G "Unix Makefiles" -DCMAKE_INSTALL_PREFIX="$TARGET_DIR" -DBUILD_SHARED_LIBS:bool=off -DWITH_OPENMP:bool=off -DBUILD_TESTS:bool=off
-make -j $jval
-make install
+# echo "*** Building openjpeg ***"
+# cd $BUILD_DIR/openjpeg-*
+# [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
+# PATH="$BIN_DIR:$PATH" cmake -G "Unix Makefiles" -DCMAKE_INSTALL_PREFIX="$TARGET_DIR" -DBUILD_SHARED_LIBS:bool=off
+# make -j $jval
+# make install
 
-echo "*** Building libvidstab ***"
-cd $BUILD_DIR/vid.stab-release-*
-[ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
-if [ "$platform" = "linux" ]; then
-  sed -i "s/vidstab SHARED/vidstab STATIC/" ./CMakeLists.txt
-elif [ "$platform" = "darwin" ]; then
-  sed -i "" "s/vidstab SHARED/vidstab STATIC/" ./CMakeLists.txt
-fi
-PATH="$BIN_DIR:$PATH" cmake -G "Unix Makefiles" -DCMAKE_INSTALL_PREFIX="$TARGET_DIR"
-make -j $jval
-make install
+# echo "*** Building zimg ***"
+# cd $BUILD_DIR/zimg-release-*
+# [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
+# ./autogen.sh
+# ./configure --enable-static  --prefix=$TARGET_DIR --disable-shared
+# make -j $jval
+# make install
 
-echo "*** Building openjpeg ***"
-cd $BUILD_DIR/openjpeg-*
-[ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
-PATH="$BIN_DIR:$PATH" cmake -G "Unix Makefiles" -DCMAKE_INSTALL_PREFIX="$TARGET_DIR" -DBUILD_SHARED_LIBS:bool=off
-make -j $jval
-make install
-
-echo "*** Building zimg ***"
-cd $BUILD_DIR/zimg-release-*
+echo "*** Building libogg ***"
+cd $BUILD_DIR/ogg*
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
 ./autogen.sh
-./configure --enable-static  --prefix=$TARGET_DIR --disable-shared
+./configure --prefix=$TARGET_DIR --disable-shared $cc_flags
 make -j $jval
 make install
-fi
 
 echo "*** Building libvorbis ***"
 cd $BUILD_DIR/vorbis*
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
 ./autogen.sh
-./configure --prefix=$TARGET_DIR --disable-shared
+./configure --prefix=$TARGET_DIR --disable-shared $cc_flags
 make -j $jval
 make install
+
+fi
 
 # FFMpeg
 echo "*** Building FFmpeg ***"
 cd $BUILD_DIR/FFmpeg*
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
 
-if [ "$platform" = "linux" ]; then
+if [ "$platform" = "linux" ] || [ $platform = "windows" ]; then
   [ ! -f config.status ] && PATH="$BIN_DIR:$PATH" \
+  set -x
+  EXTRA_LIBS="$cc_lib_prefix -lpthread -lm $cc_extra_libs" # -lz
   PKG_CONFIG_PATH="$TARGET_DIR/lib/pkgconfig" ./configure \
     --prefix="$FINAL_TARGET_DIR" \
     --pkg-config-flags="--static" \
     --extra-cflags="-I$TARGET_DIR/include" \
     --extra-ldflags="-L$TARGET_DIR/lib" \
-    --extra-libs="-lpthread -lm -lz" \
+    --extra-libs="$EXTRA_LIBS" \
     --bindir="$BIN_DIR" \
     \
     --disable-everything \
@@ -296,7 +320,8 @@ if [ "$platform" = "linux" ]; then
     --enable-demuxer=vorbis \
     --enable-libopus --enable-libvpx \
     --enable-libvorbis \
-    --enable-opencl --enable-opengl
+    --enable-opengl \
+    $cross_platform_flags
 
 # requires --enable-libmfx:
 #          --enable-decoder=vp9_qsv
@@ -346,3 +371,4 @@ PATH="$BIN_DIR:$PATH" make -j $jval
 make install
 make distclean
 hash -r
+echo "Installed to $FINAL_TARGET_DIR"
