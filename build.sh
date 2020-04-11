@@ -84,6 +84,7 @@ cc_triplet=
 cc_extra_libs=
 cc_lib_prefix=
 cc_dep_lib_extra=
+cc_cross_env=
 if [ ! -z "$cross_platform" ]; then
   case $cross_platform in
     'windows')
@@ -96,13 +97,15 @@ if [ ! -z "$cross_platform" ]; then
       ;;
     'darwin')
       platform=darwin
-      d_sdk=darwin19
+      d_sdk=darwin15
       cc_triplet=x86_64-apple-$d_sdk
       # 19 is catalina
+      cc_cross_env=$cc_triplet-
       cc_platform=x86_64-$d_sdk-gcc #x86_64-apple-$d_sdk-clang
       cc_dep_lib_extra="LDFLAGS=-lm"
-      cross_platform_flags="--arch=x86_64 cross-prefix=$cc_triplet-"
-
+      cross_platform_flags="--arch=x86_64 --target-os=$platform --cross-prefix=$cc_triplet-"
+      PATH=$OSXCROSS_BIN_DIR:$PATH
+      export OSXCROSS_PKG_CONFIG_USE_NATIVE_VARIABLES=1
       ;;
     esac
 fi
@@ -215,9 +218,12 @@ download \
 
 cc_flags=
 libvpx_cc_flags=
-if [ ! -z $cc_triplet ]; then
+if [ ! -z "$cc_triplet" ]; then
   cc_flags="--host=$cc_triplet"
-  libvpx_cc_flags="--target=$cc_platform"
+  # osxcross toolchain needs CROSS=$cc_cross_env instead of --target=$cc_platform
+  if [ -z "$cc_cross_env" ]; then
+    libvpx_cc_flags="--target=$cc_platform"
+  fi
 fi
 
 TARGET_DIR_SED=$(echo $TARGET_DIR | awk '{gsub(/\//, "\\/"); print}')
@@ -252,7 +258,7 @@ make install
 echo "*** Building libvpx ***"
 cd $BUILD_DIR/libvpx*
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
-[ ! -f config.status ] && PATH="$BIN_DIR:$PATH" ./configure --prefix=$TARGET_DIR --disable-examples --disable-unit-tests --enable-pic \
+[ ! -f config.status ] && PATH="$BIN_DIR:$PATH" CROSS=$cc_cross_env ./configure --prefix=$TARGET_DIR --disable-examples --disable-unit-tests --enable-pic \
   $libvpx_cc_flags
 PATH="$BIN_DIR:$PATH" make -j $jval
 make install
