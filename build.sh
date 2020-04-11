@@ -80,14 +80,15 @@ esac
 
 # defaults are for linux
 cross_platform_flags="--enable-opencl"
-cc_host=
+cc_triplet=
 cc_extra_libs=
 cc_lib_prefix=
+cc_dep_lib_extra=
 if [ ! -z "$cross_platform" ]; then
   case $cross_platform in
     'windows')
       platform=windows
-      cc_host=x86_64-w64-mingw32
+      cc_triplet=x86_64-w64-mingw32
       cc_platform=x86_64-win64-gcc
       cross_platform_flags="--arch=x86_64 --target-os=mingw32 --cross-prefix=x86_64-w64-mingw32-"
       cc_lib_prefix="-static"
@@ -95,12 +96,13 @@ if [ ! -z "$cross_platform" ]; then
       ;;
     'darwin')
       platform=darwin
-      cc_host="TODO"
+      d_sdk=darwin19
+      cc_triplet=x86_64-apple-$d_sdk
       # 19 is catalina
-      cc_platform=x86_64-darwin17-gcc
-      cross_platform_flags="--arch=x86_64 cross-prefix=x86_64-osx-"
-      echo "not implemented"
-      exit 1
+      cc_platform=x86_64-$d_sdk-gcc #x86_64-apple-$d_sdk-clang
+      cc_dep_lib_extra="LDFLAGS=-lm"
+      cross_platform_flags="--arch=x86_64 cross-prefix=$cc_triplet-"
+
       ;;
     esac
 fi
@@ -213,8 +215,8 @@ download \
 
 cc_flags=
 libvpx_cc_flags=
-if [ ! -z $cc_host ]; then
-  cc_flags="--host=$cc_host"
+if [ ! -z $cc_triplet ]; then
+  cc_flags="--host=$cc_triplet"
   libvpx_cc_flags="--target=$cc_platform"
 fi
 
@@ -243,7 +245,7 @@ fi
 echo "*** Building opus ***"
 cd $BUILD_DIR/opus*
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
-[ ! -f config.status ] && ./configure --prefix=$TARGET_DIR --disable-shared $cc_flags
+[ ! -f config.status ] && ./configure --prefix=$TARGET_DIR --disable-shared $cc_flags $cc_dep_lib_extra
 make
 make install
 
@@ -293,79 +295,34 @@ echo "*** Building FFmpeg ***"
 cd $BUILD_DIR/FFmpeg*
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
 
-if [ "$platform" = "linux" ] || [ $platform = "windows" ]; then
-  [ ! -f config.status ] && PATH="$BIN_DIR:$PATH" \
-  set -x
-  EXTRA_LIBS="$cc_lib_prefix -lpthread -lm $cc_extra_libs" # -lz
-  PKG_CONFIG_PATH="$TARGET_DIR/lib/pkgconfig" ./configure \
-    --prefix="$FINAL_TARGET_DIR" \
-    --pkg-config-flags="--static" \
-    --extra-cflags="-I$TARGET_DIR/include" \
-    --extra-ldflags="-L$TARGET_DIR/lib" \
-    --extra-libs="$EXTRA_LIBS" \
-    --bindir="$BIN_DIR" \
-    \
-    --disable-everything \
-    --disable-debug \
-    --disable-gpl --disable-nonfree --disable-programs \
-    --enable-shared --disable-static \
-    --enable-decoder=libopus --enable-decoder=opus \
-    --enable-decoder=libvpx_vp9 --enable-decoder=vp9 \
-    --enable-decoder=libvorbis --enable-decoder=vorbis \
-    --enable-decoder=vp9_v4l2m2m \
-    --enable-parser=vp9 --enable-parser=opus \
-    --enable-parser=vorbis \
-    --enable-demuxer=matroska \
-    --enable-demuxer=opus \
-    --enable-demuxer=vorbis \
-    --enable-libopus --enable-libvpx \
-    --enable-libvorbis \
-    --enable-opengl \
-    $cross_platform_flags
-
-# requires --enable-libmfx:
-#          --enable-decoder=vp9_qsv
-
-elif [ "$platform" = "darwin" ]; then
-  #TODO: match flags above
-  [ ! -f config.status ] && PATH="$BIN_DIR:$PATH" \
-  PKG_CONFIG_PATH="${TARGET_DIR}/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:/usr/local/Cellar/openssl/1.0.2o_1/lib/pkgconfig" ./configure \
-    --cc=/usr/bin/clang \
-    --prefix="$TARGET_DIR" \
-    --pkg-config-flags="--static" \
-    --extra-cflags="-I$TARGET_DIR/include" \
-    --extra-ldflags="-L$TARGET_DIR/lib" \
-    --extra-ldexeflags="-Bstatic" \
-    --bindir="$BIN_DIR" \
-    --enable-pic \
-    --enable-ffplay \
-    --enable-fontconfig \
-    --enable-frei0r \
-    --enable-gpl \
-    --enable-version3 \
-    --enable-libass \
-    --enable-libfribidi \
-    --enable-libfdk-aac \
-    --enable-libfreetype \
-    --enable-libmp3lame \
-    --enable-libopencore-amrnb \
-    --enable-libopencore-amrwb \
-    --enable-libopenjpeg \
-    --enable-libopus \
-    --enable-librtmp \
-    --enable-libsoxr \
-    --enable-libspeex \
-    --enable-libvidstab \
-    --enable-libvorbis \
-    --enable-libvpx \
-    --enable-libwebp \
-    --enable-libx264 \
-    --enable-libx265 \
-    --enable-libxvid \
-    --enable-libzimg \
-    --enable-nonfree \
-    --enable-openssl
-fi
+[ ! -f config.status ] && PATH="$BIN_DIR:$PATH" \
+set -x
+EXTRA_LIBS="$cc_lib_prefix -lpthread -lm $cc_extra_libs" # -lz
+PKG_CONFIG_PATH="$TARGET_DIR/lib/pkgconfig" ./configure \
+  --prefix="$FINAL_TARGET_DIR" \
+  --pkg-config-flags="--static" \
+  --extra-cflags="-I$TARGET_DIR/include" \
+  --extra-ldflags="-L$TARGET_DIR/lib" \
+  --extra-libs="$EXTRA_LIBS" \
+  --bindir="$BIN_DIR" \
+  \
+  --disable-everything \
+  --disable-debug \
+  --disable-gpl --disable-nonfree --disable-programs \
+  --enable-shared --disable-static \
+  --enable-decoder=libopus --enable-decoder=opus \
+  --enable-decoder=libvpx_vp9 --enable-decoder=vp9 \
+  --enable-decoder=libvorbis --enable-decoder=vorbis \
+  --enable-decoder=vp9_v4l2m2m \
+  --enable-parser=vp9 --enable-parser=opus \
+  --enable-parser=vorbis \
+  --enable-demuxer=matroska \
+  --enable-demuxer=opus \
+  --enable-demuxer=vorbis \
+  --enable-libopus --enable-libvpx \
+  --enable-libvorbis \
+  --enable-opengl \
+  $cross_platform_flags
 
 PATH="$BIN_DIR:$PATH" make -j $jval
 make install

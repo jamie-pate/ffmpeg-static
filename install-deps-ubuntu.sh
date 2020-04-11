@@ -31,7 +31,13 @@ DEV_PKGS="autoconf \
   texi2html \
   zlib1g-dev \
   mingw-w64-tools"
+
+OSXCROSS_PGKS="libxml2-dev gcc g++ zlib1g-dev libmpc-dev libmpfr-dev libgmp-dev"
+#Clang 3.4+, cmake, git, patch, Python, libssl-devel (openssl)
+#lzma-devel, libxml2-devel and the bash shell
+#llvm-devel uuid-devel
 set -x
 sudo apt -y install $BOOTSTRAP_PKGS
 sudo apt -y install $DEV_PKGS
+sudo apt -y install $OSXCROSS_PGKS
 set +x
