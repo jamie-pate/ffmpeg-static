@@ -13,6 +13,23 @@ cross_platform=
 platform=linux
 uname -mpi | grep -qE 'x86|i386|i686' && is_x86=1 || is_x86=0
 
+rm_symver() {
+  # hack to remove extra symver shared libs.
+  # We don't need versioning since we're linking to local files anyways.
+  case $cross_platform in
+    'windows')
+    echo "Windows doesn't support SLIBNAME"
+    ;;
+    *)
+    echo "Removing SLIBNAME"
+    slibname_with_major="$(grep SLIBNAME_WITH_MAJOR= $1 | sed 's/SLIBNAME_WITH_MAJOR=//')"
+    sed -i "s/SLIBNAME_WITH_VERSION=.*/SLIBNAME_WITH_VERSION=$slibname_with_major/" $1
+    ;;
+  esac
+  sed -i 's/SLIB_INSTALL_NAME=.*/SLIB_INSTALL_NAME=$(SLIBNAME_WITH_MAJOR)/' $1
+  sed -i 's/SLIB_INSTALL_LINKS=.*/SLIB_INSTALL_LINKS=$(SLIBNAME)/' $1
+}
+
 while getopts 'j:T:p:BdD' OPTION
 do
   case $OPTION in
@@ -332,6 +349,7 @@ PKG_CONFIG_PATH="$TARGET_DIR/lib/pkgconfig" ./configure \
   $cross_platform_flags
 
 PATH="$BIN_DIR:$PATH" make -j $jval
+rm_symver $PWD/ffbuild/config.mak
 make install
 make distclean
 hash -r
