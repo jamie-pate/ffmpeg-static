@@ -1,54 +1,43 @@
-FFmpeg static build
+Build FFmpeg Static Libs for [Godot Videodecoder](https://github.com/jamie-pate/godot-videodecoder.git)
 ===================
 
-*STATUS*: community-supported
+Three scripts to compile and cross compile a static build of ffmpeg shared libraries with **vp9, opus and vorbis** decoders. This specific fork is for use with a specific fork of [godot-videodecoder](https://github.com/jamie-pate/godot-videodecoder.git)
 
-Three scripts to make a static build of ffmpeg with all the latest codecs (webm + h264).
+Supported Platforms
+-------------------
 
-Just follow the instructions below. Once you have the build dependencies,
-run ./build.sh, wait and you should get the ffmpeg binary in target/bin
+Currently this fork supports *compiling* `linux` shared libraries and *cross compiling* `win64` and `osx` shared libraries (from linux).
 
 Build dependencies
 ------------------
 
-    # Debian & Ubuntu
-    $ apt-get install build-essential curl tar libass-dev libtheora-dev libvorbis-dev libtool cmake automake autoconf
+```
+# Debian & Ubuntu
+# Try running `intall-deps-ubuntu.sh` to install most deps to compile and cross compile.
+$ apt-get install build-essential curl tar libass-dev libtheora-dev libvorbis-dev libtool cmake automake autoconf
+```
 
-    # OS X
-    # 1. install XCode
-    # 2. install XCode command line tools
-    # 3. install homebrew
-    # brew install openssl frei0r sdl2
+* make sure you are set up to cross compile godot and plugins:
+* http://docs.godotengine.org/en/3.2/development/compiling/compiling_for_x11.html
+* http://docs.godotengine.org/en/3.2/development/compiling/compiling_for_windows.html#cross-compiling-for-windows-from-other-operating-systems
+* http://docs.godotengine.org/en/3.2/development/compiling/compiling_for_osx.html#cross-compiling-for-macos-from-linux
+    * NOTE: use XCode 7 for darwin15 support: https://developer.apple.com/download/more/?name=Xcode%207.3.1
+    * If you placed `osxcross` in a directory other than `$HOME/src/osxcross` then you should update `env.sources`
 
 Build & "install"
 -----------------
 
-    $ ./build.sh [-j <jobs>] [-B] [-d]
+    $ build.sh: [-j concurrency_level] [-B] [-d] [-D] [-T /path/to/final/target] [-p platform]
+    # -j: concurrency level (number of cores on your pc +- 20%)
+    # -D: skip building dependencies
+    # -d: download only
+    # -B: force reconfigure and rebuild
+    # -T: set final target for installing ffmpeg libs
+    # -p: set cross compile platform (windows|darwin)
     # ... wait ...
-    # binaries can be found in ./target/bin/
+    # binaries can be found in ./target/bin/ (or /path/to/final/target specified with -T)
 
-Ubuntu users can download dependencies and and install in one command:
-
-    $ sudo ./build-ubuntu.sh
-
-If you have built ffmpeg before with `build.sh`, the default behaviour is to keep the previous configuration. If you would like to reconfigure and rebuild all packages, use the `-B` flag. `-d` flag will only download and unpack the dependencies but not build.
-
-NOTE: If you're going to use the h264 presets, make sure to copy them along the binaries. For ease, you can put them in your home folder like this:
-
-    $ mkdir ~/.ffmpeg
-    $ cp ./target/share/ffmpeg/*.ffpreset ~/.ffmpeg
-
-
-Build in docker
----------------
-
-    $ docker build -t ffmpeg-static .
-    $ docker run -it ffmpeg-static
-    $ ./build.sh [-j <jobs>] [-B] [-d]
-
-The binaries will be created in `/ffmpeg-static/bin` directory.
-Method of getting them out of the Docker container is up to you.
-`/ffmpeg-static` is a Docker volume.
+If you have built ffmpeg before with `build.sh`, the default behaviour is to keep the previous configuration. If you would like to reconfigure and rebuild all packages, use the `-B` flag. `-d` flag will only download and unpack the dependencies but not build. `-D` flag will skip building dependency libs.
 
 Debug
 -----
@@ -63,21 +52,6 @@ You can then enter the source folders and make the compilation yourself
     $ ./configure --prefix=$TARGET_DIR #...
     # ...
 
-Remaining links
----------------
-
-I'm not sure it's a good idea to statically link those, but it probably
-means the executable won't work across distributions or even across releases.
-
-    # On Ubuntu 10.04:
-    $ ldd ./target/bin/ffmpeg
-    not a dynamic executable
-
-    # on OSX 10.6.4:
-    $ otool -L ffmpeg
-    ffmpeg:
-        /usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 125.2.0)
-
 Community, bugs and reports
 ---------------------------
 
@@ -90,17 +64,11 @@ upgrade dependencies and merge other people's PRs. Just be responsible and
 make an issue if you want to introduce bigger changes so we can discuss them
 beforehand.
 
-### TODO
-
- * Add some tests to check that video output is correctly generated
-   this would help upgrading the package without too much work
- * OSX's xvidcore does not detect yasm correctly
- * remove remaining libs (?)
-
 Related projects
 ----------------
 
 * FFmpeg Static Builds - http://johnvansickle.com/ffmpeg/
+* Forked from - https://github.com/zimbatm/ffmpeg-static
 
 License
 -------
