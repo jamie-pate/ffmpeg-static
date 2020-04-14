@@ -103,7 +103,8 @@ if [ ! -z "$cross_platform" ]; then
       cc_cross_env=$cc_triplet-
       cc_platform=x86_64-$d_sdk-gcc #x86_64-apple-$d_sdk-clang
       cc_dep_lib_extra="LDFLAGS=-lm"
-      cross_platform_flags="--arch=x86_64 --target-os=$platform --cross-prefix=$cc_triplet-"
+      accel_opts="--enable-opencl"
+      cross_platform_flags="$accel_opts --arch=x86_64 --target-os=$platform --cross-prefix=$cc_triplet- --install-name-dir=@loader_path"
       PATH=$OSXCROSS_BIN_DIR:$PATH
       export OSXCROSS_PKG_CONFIG_USE_NATIVE_VARIABLES=1
       ;;
