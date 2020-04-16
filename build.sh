@@ -108,7 +108,10 @@ if [ ! -z "$cross_platform" ]; then
       platform=windows
       cc_triplet=x86_64-w64-mingw32
       cc_platform=x86_64-win64-gcc
-      cross_platform_flags="--arch=x86_64 --target-os=mingw32 --cross-prefix=x86_64-w64-mingw32-"
+      # for --enable-opencl we need to get defs from dlltool?
+      # https://stackoverflow.com/questions/15185955/compile-opencl-on-mingw-nvidia-sdk
+      accel_opts="--enable-d3d11va --enable-dxva2"
+      cross_platform_flags="$accel_opts --arch=x86_64 --target-os=mingw32 --cross-prefix=x86_64-w64-mingw32-"
       cc_lib_prefix="-static"
       cc_extra_libs="-lole32"
       ;;
