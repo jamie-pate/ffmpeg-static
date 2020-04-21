@@ -8,6 +8,7 @@ jval=2
 rebuild=0
 download_only=0
 no_build_deps=0
+with_symbols=0
 final_target_dir=
 cross_platform=
 platform=linux
@@ -30,7 +31,7 @@ rm_symver() {
   sed -i 's/SLIB_INSTALL_LINKS=.*/SLIB_INSTALL_LINKS=$(SLIBNAME)/' $1
 }
 
-while getopts 'j:T:p:BdD' OPTION
+while getopts 'j:T:p:BdDs' OPTION
 do
   case $OPTION in
   j)
@@ -46,6 +47,9 @@ do
   D)
       no_build_deps=1
       ;;
+  s)
+      with_symbols=1
+      ;;
   T)
       final_target_dir="$OPTARG"
       ;;
@@ -53,10 +57,11 @@ do
       cross_platform="$OPTARG"
       ;;
   ?)
-      printf "Usage: %s: [-j concurrency_level] [-B] [-d] [-D] [-T /path/to/final/target] [-p platform]\n" $(basename $0) >&2
+      printf "Usage: %s: [-j concurrency_level] [-B] [-d] [-D] [-s] [-T /path/to/final/target] [-p platform]\n" $(basename $0) >&2
       echo " -j: concurrency level (number of cores on your pc +- 20%)"
       echo " -D: skip building dependencies" >&2
       echo " -d: download only" >&2
+      echo " -s: Build with debug and symbols" >&2
       echo " -B: force reconfigure and rebuild" >&2 # not sure this makes a difference
       echo " -T: set final target for installing ffmpeg libs" >&2
       echo " -p: set cross compile platform (windows|darwin)" >&2
@@ -76,6 +81,11 @@ fi
 
 [ "$rebuild" -eq 1 ] && echo "Reconfiguring existing packages..."
 [ $is_x86 -ne 1 ] && echo "Not using yasm or nasm on non-x86 platform..."
+
+debug_flags='--disable-debug'
+if [ $with_symbols -eq 1 ]; then
+  debug_flags='--enable-debug --disable-stripping'
+fi
 
 cd `dirname $0`
 ENV_ROOT=`pwd`
@@ -334,7 +344,7 @@ PKG_CONFIG_PATH="$TARGET_DIR/lib/pkgconfig" ./configure \
   --bindir="$BIN_DIR" \
   \
   --disable-everything \
-  --disable-debug \
+  $debug_flags \
   --disable-gpl --disable-nonfree --disable-programs \
   --enable-shared --disable-static \
   --enable-decoder=libopus --enable-decoder=opus \
@@ -350,6 +360,7 @@ PKG_CONFIG_PATH="$TARGET_DIR/lib/pkgconfig" ./configure \
   --enable-libvorbis \
   --enable-opengl \
   $cross_platform_flags
+#  --enable-libmfx \
 
 PATH="$BIN_DIR:$PATH" make -j $jval
 rm_symver $PWD/ffbuild/config.mak
