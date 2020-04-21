@@ -294,21 +294,6 @@ cd $BUILD_DIR/libvpx*
 PATH="$BIN_DIR:$PATH" make -j $jval
 make install
 
-# echo "*** Building openjpeg ***"
-# cd $BUILD_DIR/openjpeg-*
-# [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
-# PATH="$BIN_DIR:$PATH" cmake -G "Unix Makefiles" -DCMAKE_INSTALL_PREFIX="$TARGET_DIR" -DBUILD_SHARED_LIBS:bool=off
-# make -j $jval
-# make install
-
-# echo "*** Building zimg ***"
-# cd $BUILD_DIR/zimg-release-*
-# [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
-# ./autogen.sh
-# ./configure --enable-static  --prefix=$TARGET_DIR --disable-shared
-# make -j $jval
-# make install
-
 echo "*** Building libogg ***"
 cd $BUILD_DIR/ogg*
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
