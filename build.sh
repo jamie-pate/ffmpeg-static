@@ -106,7 +106,12 @@ case $OS in
 esac
 
 # defaults are for linux
-cross_platform_flags="--enable-opencl"
+# vaapi and vdpau don't show a significant increase in performance
+# and cause portability issues
+cross_platform_flags="--disable-vaapi --disable-vdpau"
+# enable-opencl does not show a signfificant peformance benefit
+# and causes portability issues
+#"--enable-opencl"
 cc_triplet=
 cc_extra_libs=
 cc_lib_prefix=
@@ -282,14 +287,17 @@ fi
 echo "*** Building opus ***"
 cd $BUILD_DIR/opus*
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
-[ ! -f config.status ] && ./configure --prefix=$TARGET_DIR --disable-shared $cc_flags $cc_dep_lib_extra
+[ ! -f config.status ] && ./configure --prefix=$TARGET_DIR --disable-shared --with-pic \
+  --enable-intrinsics --
+  $cc_flags $cc_dep_lib_extra
 make
 make install
 
 echo "*** Building libvpx ***"
 cd $BUILD_DIR/libvpx*
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
-[ ! -f config.status ] && PATH="$BIN_DIR:$PATH" CROSS=$cc_cross_env ./configure --prefix=$TARGET_DIR --disable-examples --disable-unit-tests --enable-pic \
+[ ! -f config.status ] && PATH="$BIN_DIR:$PATH" CROSS=$cc_cross_env ./configure --prefix=$TARGET_DIR \
+  --disable-examples --disable-unit-tests --enable-pic --enable-multithread \
   $libvpx_cc_flags
 PATH="$BIN_DIR:$PATH" make -j $jval
 make install
@@ -298,7 +306,7 @@ echo "*** Building libogg ***"
 cd $BUILD_DIR/ogg*
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
 ./autogen.sh
-./configure --prefix=$TARGET_DIR --disable-shared $cc_flags
+./configure --prefix=$TARGET_DIR --disable-shared --with-pic $cc_flags
 make -j $jval
 make install
 
@@ -306,7 +314,7 @@ echo "*** Building libvorbis ***"
 cd $BUILD_DIR/vorbis*
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
 ./autogen.sh
-./configure --prefix=$TARGET_DIR --disable-shared $cc_flags
+./configure --prefix=$TARGET_DIR --disable-shared --with-pic $cc_flags
 make -j $jval
 make install
 
@@ -333,9 +341,8 @@ PKG_CONFIG_PATH="$TARGET_DIR/lib/pkgconfig" ./configure \
   --disable-gpl --disable-nonfree --disable-programs \
   --enable-shared --disable-static \
   --enable-decoder=libopus --enable-decoder=opus \
-  --enable-decoder=libvpx_vp9 --enable-decoder=vp9 \
+  --enable-decoder=vp9 \
   --enable-decoder=libvorbis --enable-decoder=vorbis \
-  --enable-decoder=vp9_v4l2m2m \
   --enable-parser=vp9 --enable-parser=opus \
   --enable-parser=vorbis \
   --enable-demuxer=matroska \
@@ -346,6 +353,9 @@ PKG_CONFIG_PATH="$TARGET_DIR/lib/pkgconfig" ./configure \
   --enable-opengl \
   $cross_platform_flags
 #  --enable-libmfx \
+
+# --enable-decoder=vp9_v4l2m2m \
+# --enable-decoder=libvpx_vp9 \
 
 PATH="$BIN_DIR:$PATH" make -j $jval
 rm_symver $PWD/ffbuild/config.mak
