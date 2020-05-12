@@ -140,6 +140,10 @@ if [ ! -z "$cross_platform" ]; then
       cc_dep_lib_extra="LDFLAGS=-lm"
       accel_opts="--enable-opencl"
       cross_platform_flags="$accel_opts --arch=x86_64 --target-os=$platform --cross-prefix=$cc_triplet- --install-name-dir=@loader_path"
+      if [ -z "$OSXCROSS_BIN_DIR" ] || [ ! -d "$OSXCROSS_BIN_DIR" ]; then
+        echo "Unable to find osxcross bin directory [$OSXCROSS_BIN_DIR]: $(ls -l OSXCROSS_BIN_DIR)"
+        exit 1
+      fi
       PATH=$OSXCROSS_BIN_DIR:$PATH
       export OSXCROSS_PKG_CONFIG_USE_NATIVE_VARIABLES=1
       ;;
@@ -203,12 +207,6 @@ download \
   "https://github.com/xiph/opus/releases/download/v1.1.2"
 
 download \
-  "v1.6.1.tar.gz" \
-  "vpx-1.6.1.tar.gz" \
-  "b0925c8266e2859311860db5d76d1671" \
-  "https://github.com/webmproject/libvpx/archive"
-
-download \
   "rtmpdump-2.3.tgz" \
   "" \
   "eb961f31cd55f0acf5aad1a7b900ef59" \
@@ -253,13 +251,8 @@ download \
 [ $download_only -eq 1 ] && exit 0
 
 cc_flags=
-libvpx_cc_flags=
 if [ ! -z "$cc_triplet" ]; then
   cc_flags="--host=$cc_triplet"
-  # osxcross toolchain needs CROSS=$cc_cross_env instead of --target=$cc_platform
-  if [ -z "$cc_cross_env" ]; then
-    libvpx_cc_flags="--target=$cc_platform"
-  fi
 fi
 
 TARGET_DIR_SED=$(echo $TARGET_DIR | awk '{gsub(/\//, "\\/"); print}')
@@ -288,18 +281,9 @@ echo "*** Building opus ***"
 cd $BUILD_DIR/opus*
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
 [ ! -f config.status ] && ./configure --prefix=$TARGET_DIR --disable-shared --with-pic \
-  --enable-intrinsics --
+  --enable-intrinsics --disable-extra-programs \
   $cc_flags $cc_dep_lib_extra
 make
-make install
-
-echo "*** Building libvpx ***"
-cd $BUILD_DIR/libvpx*
-[ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
-[ ! -f config.status ] && PATH="$BIN_DIR:$PATH" CROSS=$cc_cross_env ./configure --prefix=$TARGET_DIR \
-  --disable-examples --disable-unit-tests --enable-pic --enable-multithread \
-  $libvpx_cc_flags
-PATH="$BIN_DIR:$PATH" make -j $jval
 make install
 
 echo "*** Building libogg ***"
@@ -314,7 +298,8 @@ echo "*** Building libvorbis ***"
 cd $BUILD_DIR/vorbis*
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
 ./autogen.sh
-./configure --prefix=$TARGET_DIR --disable-shared --with-pic $cc_flags
+./configure --prefix=$TARGET_DIR --disable-shared --with-pic $cc_flags \
+  --disable-oggtest --disable-examples --disable-docs $cc_dep_lib_extra
 make -j $jval
 make install
 
@@ -348,14 +333,11 @@ PKG_CONFIG_PATH="$TARGET_DIR/lib/pkgconfig" ./configure \
   --enable-demuxer=matroska \
   --enable-demuxer=opus \
   --enable-demuxer=vorbis \
-  --enable-libopus --enable-libvpx \
+  --enable-libopus \
   --enable-libvorbis \
   --enable-opengl \
   $cross_platform_flags
 #  --enable-libmfx \
-
-# --enable-decoder=vp9_v4l2m2m \
-# --enable-decoder=libvpx_vp9 \
 
 PATH="$BIN_DIR:$PATH" make -j $jval
 rm_symver $PWD/ffbuild/config.mak
