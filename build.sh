@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 set -e
 set -u
@@ -18,6 +18,8 @@ rm_symver() {
   # hack to remove extra symver shared libs.
   # We don't need versioning since we're linking to local files anyways.
   case $cross_platform in
+    'win32')
+    ;&
     'windows')
     echo "Windows doesn't support SLIBNAME"
     ;;
@@ -105,13 +107,8 @@ case $OS in
     ;;
 esac
 
-# defaults are for linux
-# vaapi and vdpau don't show a significant increase in performance
-# and cause portability issues
-cross_platform_flags="--disable-vaapi --disable-vdpau"
-# enable-opencl does not show a signfificant peformance benefit
-# and causes portability issues
-#"--enable-opencl"
+cross_platform_flags=
+
 cc_triplet=
 cc_extra_libs=
 cc_lib_prefix=
@@ -119,16 +116,34 @@ cc_dep_lib_extra=
 cc_cross_env=
 if [ ! -z "$cross_platform" ]; then
   case $cross_platform in
+    'win32')
+      ;&
     'windows')
       platform=windows
-      cc_triplet=x86_64-w64-mingw32
-      cc_platform=x86_64-win64-gcc
+      arch=x86_64
+      if [ $cross_platform = "win32" ]; then
+        arch=i686
+      fi
+      cc_triplet=$arch-w64-mingw32
       # for --enable-opencl we need to get defs from dlltool?
       # https://stackoverflow.com/questions/15185955/compile-opencl-on-mingw-nvidia-sdk
       accel_opts="--enable-d3d11va --enable-dxva2"
-      cross_platform_flags="$accel_opts --arch=x86_64 --target-os=mingw32 --cross-prefix=x86_64-w64-mingw32-"
+      cross_platform_flags="$accel_opts --arch=$arch --target-os=mingw32 --cross-prefix=$cc_triplet-"
       cc_lib_prefix="-static"
       cc_extra_libs="-lole32"
+      ;;
+    'x11_32')
+      ;&
+    'x11')
+      arch=x86_64
+      if [ $cross_platform = "x11_32" ]; then
+        arch=i686
+      fi
+      cc_triplet=$arch-pc-linux-gnu
+      # vaapi and vdpau don't show a significant increase in performance
+      # and cause portability issues, so only enable on linux
+      # --enable-opencl does not show a significant peformance benefit, so skip it
+      cross_platform_flags="--disable-vaapi --disable-vdpau"
       ;;
     'darwin')
       platform=darwin
