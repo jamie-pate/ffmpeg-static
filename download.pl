@@ -107,7 +107,7 @@ sub download
         return;
       }
     }
-    open WGET, "wget -t5 --timeout=20 --no-check-certificate $options -O- '$mirror/$filename' |" or die "Cannot launch wget.\n";
+    open WGET, "wget -t5 --timeout=20 --no-verbose $options -O- '$mirror/$filename' |" or die "Cannot launch wget.\n";
     open MD5SUM, "| $md5cmd > '$target/$aliasname.md5sum'" or die "Cannot launch md5sum.\n";
     open OUTPUT, "> $target/$aliasname.dl" or die "Cannot create file $target/$aliasname.dl: $!\n";
     my $buffer;
