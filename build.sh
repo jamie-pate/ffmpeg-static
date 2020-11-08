@@ -66,7 +66,7 @@ do
       echo " -s: Build with debug and symbols" >&2
       echo " -B: force reconfigure and rebuild" >&2 # not sure this makes a difference
       echo " -T: set final target for installing ffmpeg libs" >&2
-      echo " -p: set cross compile platform (windows|darwin)" >&2
+      echo " -p: set cross compile platform (windows|win32|darwin|x11_32)" >&2
       exit 2
       ;;
   esac
@@ -107,13 +107,17 @@ case $OS in
     ;;
 esac
 
-cross_platform_flags=
-
+# default flags for non-cross  platform build
+cross_platform_flags="--disable-vaapi --disable-vdpau"
+cc_flags=
+cc_cflags=
+cc_ldflags=
 cc_triplet=
 cc_extra_libs=
 cc_lib_prefix=
 cc_dep_lib_extra=
 cc_cross_env=
+cc_pkg_config_path=
 if [ ! -z "$cross_platform" ]; then
   case $cross_platform in
     'win32')
@@ -136,14 +140,21 @@ if [ ! -z "$cross_platform" ]; then
       ;&
     'x11')
       arch=x86_64
-      if [ $cross_platform = "x11_32" ]; then
-        arch=i686
-      fi
       cc_triplet=$arch-pc-linux-gnu
+      bits=64P
+      if [ $cross_platform = "x11_32" ]; then
+        arch=x86_32
+        bits=32
+        cc_triplet=i686-pc-linux-gnu
+      fi
+      cc_pkg_config_path=":/"
+      cc_flags="CFLAGS=-m$bits LDFLAGS=-m$bits"
+      cc_cflags="-m$bits"
+      cc_ldflags="-m$bits"
       # vaapi and vdpau don't show a significant increase in performance
       # and cause portability issues, so only enable on linux
       # --enable-opencl does not show a significant peformance benefit, so skip it
-      cross_platform_flags="--disable-vaapi --disable-vdpau"
+      cross_platform_flags="--disable-vaapi --disable-vdpau --arch=$arch"
       ;;
     'darwin')
       platform=darwin
@@ -162,6 +173,12 @@ if [ ! -z "$cross_platform" ]; then
       PATH=$OSXCROSS_BIN_DIR:$PATH
       export OSXCROSS_PKG_CONFIG_USE_NATIVE_VARIABLES=1
       ;;
+    '')
+    ;;
+    *)
+    echo "Invalid platform $cross_platform"
+    exit 1
+    ;;
     esac
 fi
 
@@ -265,9 +282,8 @@ download \
 
 [ $download_only -eq 1 ] && exit 0
 
-cc_flags=
 if [ ! -z "$cc_triplet" ]; then
-  cc_flags="--host=$cc_triplet"
+  cc_flags="$cc_flags --host=$cc_triplet"
 fi
 
 TARGET_DIR_SED=$(echo $TARGET_DIR | awk '{gsub(/\//, "\\/"); print}')
@@ -326,13 +342,15 @@ cd $BUILD_DIR/FFmpeg*
 [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
 
 [ ! -f config.status ] && PATH="$BIN_DIR:$PATH" \
-set -x
+
 EXTRA_LIBS="$cc_lib_prefix -lpthread -lm $cc_extra_libs" # -lz
-PKG_CONFIG_PATH="$TARGET_DIR/lib/pkgconfig" ./configure \
+export PKG_CONFIG_PATH="$TARGET_DIR/lib/pkgconfig${cc_pkg_config_path}"
+set -o posix; set
+./configure \
   --prefix="$FINAL_TARGET_DIR" \
   --pkg-config-flags="--static" \
-  --extra-cflags="-I$TARGET_DIR/include" \
-  --extra-ldflags="-L$TARGET_DIR/lib" \
+  --extra-cflags="-I$TARGET_DIR/include $cc_cflags" \
+  --extra-ldflags="-L$TARGET_DIR/lib $cc_ldflags" \
   --extra-libs="$EXTRA_LIBS" \
   --bindir="$BIN_DIR" \
   \
@@ -353,10 +371,11 @@ PKG_CONFIG_PATH="$TARGET_DIR/lib/pkgconfig" ./configure \
   --enable-opengl \
   $cross_platform_flags
 #  --enable-libmfx \
-
 PATH="$BIN_DIR:$PATH" make -j $jval
 rm_symver $PWD/ffbuild/config.mak
 make install
 make distclean
+
+file $FINAL_TARGET_DIR/lib/*
 hash -r
 echo "Installed to $FINAL_TARGET_DIR"
