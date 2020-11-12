@@ -360,8 +360,10 @@ set -o posix; set
   --enable-shared --disable-static \
   --enable-decoder=libopus --enable-decoder=opus \
   --enable-decoder=vp9 \
+  --enable-decoder=vp8 \
   --enable-decoder=libvorbis --enable-decoder=vorbis \
   --enable-parser=vp9 --enable-parser=opus \
+  --enable-parser=vp8 --enable-parser=opus \
   --enable-parser=vorbis \
   --enable-demuxer=matroska \
   --enable-demuxer=opus \
