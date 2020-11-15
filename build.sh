@@ -359,9 +359,12 @@ set -o posix; set
   --disable-gpl --disable-nonfree --disable-programs \
   --enable-shared --disable-static \
   --enable-decoder=libopus --enable-decoder=opus \
+  --enable-decoder=mpeg2_qsv --enable-decoder=mpeg2 --enable-decoder=mpeg2video --enable-decoder=mpeg2_mmal \
   --enable-decoder=vp9 --enable-decoder=vp8 \
+  --enable-decoder=libvpx_vp9 --enable-decoder=libvpx_vp8 --enable-decoder=vp8_qsv \
   --enable-decoder=libvorbis --enable-decoder=vorbis \
   --enable-parser=vp9 --enable-parser=vp8 \
+  --enable-parser=mpegvideo \
   --enable-parser=opus \
   --enable-parser=vorbis \
   --enable-demuxer=matroska \
