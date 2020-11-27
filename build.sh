@@ -12,6 +12,9 @@ with_symbols=0
 final_target_dir=
 cross_platform=
 platform=linux
+
+FF_ENABLE="${FF_ENABLE:-"vp8 vp9 opus vorbis"}"
+
 uname -mpi | grep -qE 'x86|i386|i686' && is_x86=1 || is_x86=0
 
 rm_symver() {
@@ -181,6 +184,53 @@ if [ ! -z "$cross_platform" ]; then
     ;;
     esac
 fi
+disable_everything=--disable-everything
+declare -a enable_features
+
+# hwaccels
+# h263_vaapi               h264_videotoolbox        mjpeg_nvdec              mpeg2_dxva2              mpeg4_vdpau              vc1_vdpau                vp9_vaapi
+# h263_videotoolbox        hevc_d3d11va             mjpeg_vaapi              mpeg2_nvdec              mpeg4_videotoolbox       vp8_nvdec                wmv3_d3d11va
+# h264_d3d11va             hevc_d3d11va2            mpeg1_nvdec              mpeg2_vaapi              vc1_d3d11va              vp8_vaapi                wmv3_d3d11va2
+# h264_d3d11va2            hevc_dxva2               mpeg1_vdpau              mpeg2_vdpau              vc1_d3d11va2             vp9_d3d11va              wmv3_dxva2
+# h264_dxva2               hevc_nvdec               mpeg1_videotoolbox       mpeg2_videotoolbox       vc1_dxva2                vp9_d3d11va2             wmv3_nvdec
+# h264_nvdec               hevc_vaapi               mpeg1_xvmc               mpeg2_xvmc               vc1_nvdec                vp9_dxva2                wmv3_vaapi
+# h264_vaapi               hevc_vdpau               mpeg2_d3d11va            mpeg4_nvdec              vc1_vaapi                vp9_nvdec                wmv3_vdpau
+# h264_vdpau               hevc_videotoolbox        mpeg2_d3d11va2           mpeg4_vaapi
+
+for decoder in $FF_ENABLE; do
+  case $decoder in
+    'everything')
+      disable_everything=
+      ;;
+    'vp8')
+      enable_features+=(--enable-decoder=vp8 --enable-parser=vp8)
+      case $platform in
+        'windows')
+          enable_features+=(--enable-hwaccel=vp8_d3d11va2 --enable-hwaccel=vp8_d3d11va --enable-hwaccel=vp8_dxva2)
+          ;;
+        # add other platform's hwaccels here
+      esac
+    ;;
+    'vp9')
+      enable_features+=(--enable-decoder=vp9 --enable-parser=vp9)
+      case $platform in
+        'windows')
+          enable_features+=(--enable-hwaccel=vp9_d3d11va2 --enable-hwaccel=vp9_d3d11va --enable-hwaccel=vp9_dxva2)
+        ;;
+      esac
+    ;;
+    'vorbis')
+      enable_features+=(--enable-libvorbis --enable-demuxer=vorbis --enable-parser=vorbis --enable-decoder=vorbis --enable-decoder=libvorbis)
+    ;;
+    'opus')
+      enable_features+=(--enable-libopus --enable-demuxer=opus --enable-parser=opus --enable-decoder=opus --enable-decoder=libopus)
+    ;;
+    # add more decoders here
+  esac
+  if [ "$decoder" == "vp8" ] || [ "$decoder" == "vp9" ]; then
+    enable_features+=(--enable-demuxer=matroska)
+  fi
+done
 
 last_platform="$(cat $ENV_ROOT/.config-platform || true)"
 if [ "$platform" != "$last_platform" ] && [ "$rebuild" -ne 1 ]; then
@@ -345,7 +395,8 @@ cd $BUILD_DIR/FFmpeg*
 
 EXTRA_LIBS="$cc_lib_prefix -lpthread -lm $cc_extra_libs" # -lz
 export PKG_CONFIG_PATH="$TARGET_DIR/lib/pkgconfig${cc_pkg_config_path}"
-set -o posix; set
+
+
 ./configure \
   --prefix="$FINAL_TARGET_DIR" \
   --pkg-config-flags="--static" \
@@ -354,27 +405,15 @@ set -o posix; set
   --extra-libs="$EXTRA_LIBS" \
   --bindir="$BIN_DIR" \
   \
-  --disable-everything \
+  $disable_everything \
   $debug_flags \
   --disable-gpl --disable-nonfree --disable-programs \
   --enable-shared --disable-static \
-  --enable-decoder=libopus --enable-decoder=opus \
-  --enable-decoder=mpeg2_qsv --enable-decoder=mpeg2 --enable-decoder=mpeg2video --enable-decoder=mpeg2_mmal \
-  --enable-decoder=vp9 --enable-decoder=vp8 \
-  --enable-decoder=libvpx_vp9 --enable-decoder=libvpx_vp8 --enable-decoder=vp8_qsv \
-  --enable-decoder=libvorbis --enable-decoder=vorbis \
-  --enable-parser=vp9 --enable-parser=vp8 \
-  --enable-parser=mpegvideo \
-  --enable-parser=opus \
-  --enable-parser=vorbis \
-  --enable-demuxer=matroska \
-  --enable-demuxer=opus \
-  --enable-demuxer=vorbis \
-  --enable-libopus \
-  --enable-libvorbis \
   --enable-opengl \
+  ${enable_features[@]} \
   $cross_platform_flags
 #  --enable-libmfx \
+
 PATH="$BIN_DIR:$PATH" make -j $jval
 rm_symver $PWD/ffbuild/config.mak
 make install
