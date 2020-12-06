@@ -188,14 +188,14 @@ disable_everything=--disable-everything
 declare -a enable_features
 
 # hwaccels
-# h263_vaapi               h264_videotoolbox        mjpeg_nvdec              mpeg2_dxva2              mpeg4_vdpau              vc1_vdpau                vp9_vaapi
-# h263_videotoolbox        hevc_d3d11va             mjpeg_vaapi              mpeg2_nvdec              mpeg4_videotoolbox       vp8_nvdec                wmv3_d3d11va
-# h264_d3d11va             hevc_d3d11va2            mpeg1_nvdec              mpeg2_vaapi              vc1_d3d11va              vp8_vaapi                wmv3_d3d11va2
-# h264_d3d11va2            hevc_dxva2               mpeg1_vdpau              mpeg2_vdpau              vc1_d3d11va2             vp9_d3d11va              wmv3_dxva2
-# h264_dxva2               hevc_nvdec               mpeg1_videotoolbox       mpeg2_videotoolbox       vc1_dxva2                vp9_d3d11va2             wmv3_nvdec
-# h264_nvdec               hevc_vaapi               mpeg1_xvmc               mpeg2_xvmc               vc1_nvdec                vp9_dxva2                wmv3_vaapi
-# h264_vaapi               hevc_vdpau               mpeg2_d3d11va            mpeg4_nvdec              vc1_vaapi                vp9_nvdec                wmv3_vdpau
-# h264_vdpau               hevc_videotoolbox        mpeg2_d3d11va2           mpeg4_vaapi
+# h263_vaapi               h264_videotoolbox        mjpeg_nvdec              mpeg2_dxva2              mpeg4_vdpau              vp8_nvdec                wmv3_d3d11va
+# h263_videotoolbox        hevc_d3d11va             mjpeg_vaapi              mpeg2_nvdec              mpeg4_videotoolbox       vp8_vaapi                wmv3_d3d11va2
+# h264_d3d11va             hevc_d3d11va2            mpeg1_nvdec              mpeg2_vaapi              vc1_d3d11va              vp9_d3d11va              wmv3_dxva2
+# h264_d3d11va2            hevc_dxva2               mpeg1_vdpau              mpeg2_vdpau              vc1_d3d11va2             vp9_d3d11va2             wmv3_nvdec
+# h264_dxva2               hevc_nvdec               mpeg1_videotoolbox       mpeg2_videotoolbox       vc1_dxva2                vp9_dxva2                wmv3_vaapi
+# h264_nvdec               hevc_vaapi               mpeg1_xvmc               mpeg2_xvmc               vc1_nvdec                vp9_nvdec                wmv3_vdpau
+# h264_vaapi               hevc_vdpau               mpeg2_d3d11va            mpeg4_nvdec              vc1_vaapi                vp9_vaapi
+# h264_vdpau               hevc_videotoolbox        mpeg2_d3d11va2           mpeg4_vaapi              vc1_vdpau                vp9_vdpau
 
 for decoder in $FF_ENABLE; do
   case $decoder in
@@ -208,6 +208,10 @@ for decoder in $FF_ENABLE; do
         'windows')
           enable_features+=(--enable-hwaccel=vp8_d3d11va2 --enable-hwaccel=vp8_d3d11va --enable-hwaccel=vp8_dxva2)
           ;;
+        'linux')
+          # no vp9-vdpau!
+          enable_features+=(--enable-hwaccel=vp8_vaapi)
+          ;;
         # add other platform's hwaccels here
       esac
     ;;
@@ -216,7 +220,10 @@ for decoder in $FF_ENABLE; do
       case $platform in
         'windows')
           enable_features+=(--enable-hwaccel=vp9_d3d11va2 --enable-hwaccel=vp9_d3d11va --enable-hwaccel=vp9_dxva2)
-        ;;
+          ;;
+        'linux')
+          enable_features+=(--enable-hwaccel=vp9_vaapi --enable-hwaccel=vp9_vdpau)
+          ;;
       esac
     ;;
     'vorbis')
@@ -325,9 +332,9 @@ download \
   "https://github.com/xiph/vorbis/archive/"
 
 download \
-  "n4.0.tar.gz" \
-  "ffmpeg4.0.tar.gz" \
-  "4749a5e56f31e7ccebd3f9924972220f" \
+  "n4.3.1.tar.gz" \
+  "ffmpeg4.3.1.tar.gz" \
+  "426ca412ca61634a248c787e29507206" \
   "https://github.com/FFmpeg/FFmpeg/archive"
 
 [ $download_only -eq 1 ] && exit 0
