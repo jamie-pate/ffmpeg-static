@@ -9,11 +9,13 @@ rebuild=0
 download_only=0
 no_build_deps=0
 with_symbols=0
-final_target_dir=
+final_target_dir=target
 cross_platform=
 platform=linux
 
+
 FF_ENABLE="${FF_ENABLE:-"vp8 vp9 opus vorbis"}"
+TARGET_DIR=${TARGET_DIR:-"$PWD/target"}
 
 uname -mpi | grep -qE 'x86|i386|i686' && is_x86=1 || is_x86=0
 
@@ -74,6 +76,7 @@ do
       ;;
   esac
 done
+
 shift $(($OPTIND - 1))
 
 if [ "$jflag" ]
@@ -111,7 +114,7 @@ case $OS in
 esac
 
 # default flags for non-cross  platform build
-cross_platform_flags="--disable-vaapi --disable-vdpau"
+cross_platform_flags=""
 cc_flags=
 cc_cflags=
 cc_ldflags=
@@ -121,6 +124,7 @@ cc_lib_prefix=
 cc_dep_lib_extra=
 cc_cross_env=
 cc_pkg_config_path=
+meson_args=
 if [ ! -z "$cross_platform" ]; then
   case $cross_platform in
     'win32')
@@ -144,7 +148,7 @@ if [ ! -z "$cross_platform" ]; then
     'x11')
       arch=x86_64
       cc_triplet=$arch-pc-linux-gnu
-      bits=64P
+      bits=64
       if [ $cross_platform = "x11_32" ]; then
         arch=x86_32
         bits=32
@@ -154,10 +158,9 @@ if [ ! -z "$cross_platform" ]; then
       cc_flags="CFLAGS=-m$bits LDFLAGS=-m$bits"
       cc_cflags="-m$bits"
       cc_ldflags="-m$bits"
-      # vaapi and vdpau don't show a significant increase in performance
-      # and cause portability issues, so only enable on linux
-      # --enable-opencl does not show a significant peformance benefit, so skip it
-      cross_platform_flags="--disable-vaapi --disable-vdpau --arch=$arch"
+      accel_opts="--enable-vdpau --enable-vaapi"
+      cross_platform_flags="$accel_opts --arch=$arch"
+      meson_args="-Dc_args=-m$bits -Dc_link_args=-m$bits"
       ;;
     'darwin')
       platform=darwin
@@ -227,10 +230,10 @@ for decoder in $FF_ENABLE; do
       esac
     ;;
     'vorbis')
-      enable_features+=(--enable-libvorbis --enable-demuxer=vorbis --enable-parser=vorbis --enable-decoder=vorbis --enable-decoder=libvorbis)
+      enable_features+=(--enable-libvorbis --enable-parser=vorbis --enable-decoder=vorbis --enable-decoder=libvorbis)
     ;;
     'opus')
-      enable_features+=(--enable-libopus --enable-demuxer=opus --enable-parser=opus --enable-decoder=opus --enable-decoder=libopus)
+      enable_features+=(--enable-libopus --enable-parser=opus --enable-decoder=opus --enable-decoder=libopus)
     ;;
     # add more decoders here
   esac
@@ -283,6 +286,8 @@ sed 's/void pure_func/void/g' -i ./nasm-2.13.01/include/nasm.h
 sed 's/void pure_func/void/g' -i ./nasm-2.13.01/include/nasmlib.h
 sed 's/void pure_func/void/g' -i ./yasm-1.3.0/modules/preprocs/nasm/nasmlib.h
 
+# find lib info here: http://www.linuxfromscratch.org/blfs/view/7.6-systemd/multimedia/libdriv.html
+
 download \
   "v1.2.11.tar.gz" \
   "zlib-1.2.11.tar.gz" \
@@ -330,6 +335,23 @@ download \
   "vorbis-1.3.6.tar.gz" \
   "03e967efb961f65a313459c5d0f4cbfb" \
   "https://github.com/xiph/vorbis/archive/"
+
+if [ $platform = "linux" ]; then
+  download \
+    "2.9.1.tar.gz" \
+    "va-2.9.1.tar.gz" \
+    "97085bdbddbb89005b25f32c36fc5167" \
+    "https://github.com/intel/libva/archive/"
+
+  #libvdpau-1.3.tar.gz
+  # 1.3 adds decoding of vp9
+  download \
+    "libvdpau-1.3.tar.gz" \
+    "" \
+    "28f52b658f745e933d0f1c3187dbbe1d" \
+    "https://gitlab.freedesktop.org/vdpau/libvdpau/-/archive/1.3/"
+
+fi
 
 download \
   "n4.3.1.tar.gz" \
@@ -391,6 +413,27 @@ cd $BUILD_DIR/vorbis*
 make -j $jval
 make install
 
+if [ "$platform" = "linux" ]; then
+  echo "*** Building libva ***"
+  cd $BUILD_DIR/libva*
+  [ $rebuild -eq 1 -a -f Makefile ] && make distclean || true
+  ./autogen.sh
+  ./configure --prefix=$TARGET_DIR  --enable-static --with-pic $cc_flags \
+    --disable-docs
+  #--disable-shared # i think --disable-shared is broken? ffmpeg configure fails due to missing `libdl` when it's enabled.
+  make -j $jval VERBOSE=1
+  make install
+  ls -l /opt/godot-videodecoder/ffmpeg-static/target/include/va
+
+  echo "*** Building vdpau ***"
+  cd $BUILD_DIR/libvdpau*
+  [ $rebuild -eq 1 -a -f Makefile ] && rm -rf build || true
+  meson build --prefix=$TARGET_DIR $meson_args --buildtype=debugoptimized
+  cd build
+  meson compile
+  meson install
+fi
+
 fi
 
 # FFMpeg
@@ -402,9 +445,8 @@ cd $BUILD_DIR/FFmpeg*
 
 EXTRA_LIBS="$cc_lib_prefix -lpthread -lm $cc_extra_libs" # -lz
 export PKG_CONFIG_PATH="$TARGET_DIR/lib/pkgconfig${cc_pkg_config_path}"
-
-
 ./configure \
+  --fatal-warnings \
   --prefix="$FINAL_TARGET_DIR" \
   --pkg-config-flags="--static" \
   --extra-cflags="-I$TARGET_DIR/include $cc_cflags" \
